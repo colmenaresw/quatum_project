@@ -8,20 +8,21 @@ import copy
 
 #vec_funct = lambda array_x, array_y :  np.array([array_y, array_x])  # test function f(x,y) = [y, x]
 #vec_funct = lambda array_x, array_y  :  np.array([array_x, array_y])  # test function f(x,y) = [x, y]
-#vec_funct = lambda array_x, array_y  :  np.array([array_x, array_y])/np.linalg.norm([array_x, array_y]**2+1) +  np.array([array_x, array_y]) * np.exp(-np.linalg.norm([array_x, array_y])/2) # test function f(x,y) = [x, y]
+vec_funct = lambda array_x, array_y  :  np.array([array_x, array_y])  # test function [x + y, x + y]
 
 
-def vec_funct(array_x, array_y ):
-    vec1 = np.array([array_y, -array_x])
-    vec2 = np.array([array_x, array_y])
-    first_term = 1/(np.linalg.norm(vec2**2) * 1)
-    second_term = np.exp((-np.linalg.norm(vec2)**2)/2)
-    ans = vec1*first_term + vec2*second_term
-    return ans
+# def vec_funct(array_x, array_y ):
+#     """ return a vector """
+#     vec1 = np.array([array_y, -array_x])
+#     vec2 = np.array([array_x, array_y])
+#     first_term = 1/(np.linalg.norm(vec2**2) * 1)
+#     second_term = np.exp((-np.linalg.norm(vec2)**2)/2)
+#     ans = vec1*first_term + vec2*second_term
+#     return ans
 
 class Operator:
     def __init__(self) -> None:
-        self.delta = 0.1
+        self.delta = 0.05
         self.dx = np.array([self.delta, 0])
         self.dy = np.array([0, self.delta])
         self.d_p = [self.dx, self.dy]
@@ -127,4 +128,31 @@ class Operator:
 
         return jacobi_grid
 
+    def numerical_gradient_phi(self, grid):
 
+        size = len(grid)
+        ans_grid_x  = copy.deepcopy(grid)  # we create a copy of the original grid
+        ans_grid_y = copy.deepcopy(grid) 
+        
+        for i in range(1,size-1): # we iterate over the rows (vertical direction)
+            for j in range(1,size-1):  # we iterate over the columns (horizontal direction)
+
+                # for partial of x we check left and right
+                # we begin with left and check boundaries
+                left = grid[i][j-1]
+                right = grid[i][j+1]
+
+                partial_x = (right - left)/2*self.delta
+
+                # now we check up and down
+                up = grid[i+1][j]
+                down = grid[i-1][j]
+
+                partial_y = (up - down)/2*self.delta
+
+                ans_grid_x[i][j] = partial_x
+                ans_grid_y[i][j] = partial_y
+
+                print("done")
+
+        return [ans_grid_x,ans_grid_y]
