@@ -6,10 +6,31 @@
 import numpy as np
 import copy
 
+# constanst declarations
+NUM_OF_POINTS = 10  # number of points for the discretize grid
+D_SIZE = 1  # the size of the domain
+NUM_ITERATIONS = 400
+
+
+
 #vec_funct = lambda array_x, array_y :  np.array([array_y, array_x])  # test function f(x,y) = [y, x]
 #vec_funct = lambda array_x, array_y  :  np.array([array_x, array_y])  # test function f(x,y) = [x, y]
-vec_funct = lambda array_x, array_y  :  np.array([array_x, array_y])  # test function [x + y, x + y]
+#vec_funct = lambda array_x, array_y  :  np.array([array_x, array_y])  # test function [x + y, x + y]
+#vec_funct_in_x = lambda grid_x, grid_y : grid_x**2
 
+def vec_funct_in_x(grid_x, grid_y):
+    norm = grid_x**2+grid_y**2 
+    alpha = (norm + 1)**-1
+    beta = np.exp(-norm*0.5)
+
+    return grid_y * alpha + grid_x * beta
+
+def vec_funct_in_y(grid_x, grid_y):
+    norm = grid_x**2+grid_y**2 
+    alpha = (norm + 1)**-1
+    beta = np.exp(-norm*0.5)
+
+    return -grid_x * alpha + grid_y * beta
 
 # def vec_funct(array_x, array_y ):
 #     """ return a vector """
@@ -22,22 +43,49 @@ vec_funct = lambda array_x, array_y  :  np.array([array_x, array_y])  # test fun
 
 class Operator:
     def __init__(self) -> None:
-        self.delta = 0.05
-        self.dx = np.array([self.delta, 0])
-        self.dy = np.array([0, self.delta])
-        self.d_p = [self.dx, self.dy]
-        
-    def numerical_partial_deriv_of_x(self, vector):  # of : partial with respect to x = 0 or y = 1
-        dp = np.zeros(vector[0].shape)
-        dp = dp + self.delta
-        partial = (vec_funct(vector[0] + dp, vector[1])[0]-(vec_funct(vector[0] - dp, vector[1])[0]))/(2*self.delta)
-        return partial
+        #self.delta = 0.05
+        self.delta = D_SIZE / (NUM_OF_POINTS - 1)  # size of the grid
+        self.x_size = np.linspace(0, D_SIZE, NUM_OF_POINTS)
+        self.y_size = np.linspace(0, D_SIZE, NUM_OF_POINTS)
 
-    def numerical_partial_deriv_of_y(self, vector):  # of : partial with respect to x = 0 or y = 1
-        dp = np.zeros(vector[1].shape)
-        dp = dp + self.delta
-        partial = (vec_funct(vector[0], vector[1] + dp)[1]-(vec_funct(vector[0], vector[1] - dp)[1]))/(2*self.delta)
-        return partial
+        # two dimensional grid
+        self.X, self.Y = np.meshgrid(self.x_size, self.y_size)
+
+        # self.dx = np.array([self.delta, 0])
+        # self.dy = np.array([0, self.delta])
+        # self.d_p = [self.dx, self.dy]
+
+    def numerical_partial_deriv_of_x(self, vector_field_f):  # central difference squeme
+        delta_x = np.zeros_like(vector_field_f)
+
+        # [1:-1, 1:-1]  all the points that are not in the boundaries
+        delta_x[1:-1, 1:-1] = (vector_field_f[1:-1, 2:] - vector_field_f[1:-1, 0:-2] 
+                          ) / (                  
+                           2*self.delta )
+        return delta_x
+
+    def numerical_partial_deriv_of_y(self, vector_field_f):  # central difference squeme
+        delta_y = np.zeros_like(vector_field_f)
+
+        # [1:-1, 1:-1]  all the points that are not in the boundaries
+        delta_y[1:-1, 1:-1] = (vector_field_f[2:, 1:-1] - vector_field_f[0:-2, 1:-1] 
+                          ) / (                  
+                           2*self.delta )
+        return delta_y
+
+    def numerical_laplace()
+        
+    # def numerical_partial_deriv_of_x(self, vector):  # of : partial with respect to x = 0 or y = 1
+    #     dp = np.zeros(vector[0].shape)
+    #     dp = dp + self.delta
+    #     partial = (vec_funct(vector[0] + dp, vector[1])[0]-(vec_funct(vector[0] - dp, vector[1])[0]))/(2*self.delta)
+    #     return partial
+
+    # def numerical_partial_deriv_of_y(self, vector):  # of : partial with respect to x = 0 or y = 1
+    #     dp = np.zeros(vector[1].shape)
+    #     dp = dp + self.delta
+    #     partial = (vec_funct(vector[0], vector[1] + dp)[1]-(vec_funct(vector[0], vector[1] - dp)[1]))/(2*self.delta)
+    #     return partial
 
     def numerical_gradient(self, vector):
 
@@ -156,3 +204,12 @@ class Operator:
                 print("done")
 
         return [ans_grid_x,ans_grid_y]
+
+
+if __name__ == "__main__":
+    o = Operator()
+    print(o.X)
+    vel_field_x = vec_funct_in_x(o.X, o.Y)
+    vel_field_y = vec_funct_in_y(o.X, o.Y)
+    o.numerical_partial_deriv_of_x(vel_field_x)
+    o.numerical_partial_deriv_of_y(vel_field_y)

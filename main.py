@@ -8,6 +8,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import Operators as o
 
+
+
+
 if __name__ == "__main__":
     # vec = np.array([2,2])
     # y = vec_funct(vec)
@@ -27,14 +30,14 @@ if __name__ == "__main__":
 
 
     f = o.vec_funct(x, y)
-    f_modified = [f[0]+grad_phi[0], f[1]+grad_phi[1]]
+    f_modified = [f[0]-grad_phi[0], f[1]-grad_phi[1]]
     # b_ = op.numerical_gradient(grid)
     c_ = op.numerical_divergence(grid)
     # d_ = op.jacobi_iterator(grid)
     #z = np.exp(-x**2 - y**2)
     #plt.quiver(x, y, b_[0], b_[1])
     #plt.quiver(x, y, grad_phi[0], grad_phi[1])
-    plt.quiver(x, y, f[0], f[1])
+    #plt.quiver(x, y, f[0], f[1])
     #plt.show()
     plt.quiver(x, y, f_modified[0],f_modified[1] )
     #plt.pcolormesh(x,y,c_)
