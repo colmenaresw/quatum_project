@@ -12,35 +12,38 @@ import Operators as o
 
 
 if __name__ == "__main__":
-    # vec = np.array([2,2])
-    # y = vec_funct(vec)
+
     op = o.Operator()
-    # a = op.numerical_divergence(vec)
-    # b = op.numerical_gradient(vec)
-    x,y = np.meshgrid(np.arange(0,1,op.delta), np.arange(0,1,op.delta))
-    grid = [x,y]
-
-    # Compute the jacobi iterator
-    phi = op.jacobi_iterator(grid)
-
-    # compute the grad of phi
-    grad_phi = op.numerical_gradient_phi(phi)
 
     # corrected velocity
+    vel_field_x_ans = o.vec_funct_in_x_ans(op.X, op.Y)
+    vel_field_y_ans = o.vec_funct_in_y_ans(op.X, op.Y)
 
+    phi = op.jacobi_iterator()  # this phi already lost the info around the borders
+    #phi = op.X**2 + op.Y**2
+    laplace_phi = op.laplace(-phi)
+    div_vel = op.numerical_div(op.vel_field_x, op.vel_field_y)
+    dif = -laplace_phi - div_vel
+    grad_phi = op.numerical_grad(-phi[1:-1,1:-1])  # second lost of info
 
-    f = o.vec_funct(x, y)
-    f_modified = [f[0]-grad_phi[0], f[1]-grad_phi[1]]
-    # b_ = op.numerical_gradient(grid)
-    c_ = op.numerical_divergence(grid)
-    # d_ = op.jacobi_iterator(grid)
-    #z = np.exp(-x**2 - y**2)
-    #plt.quiver(x, y, b_[0], b_[1])
+    # every time i apply the numerical derivative i lost information around the borders
+    a = op.numerical_div(grad_phi[0][1:-1,1:-1], grad_phi[1][1:-1,1:-1])
+    c = -div_vel[2:-2,2:-2] - a
+    #ans = div_vel - a
+
+    # correction
+    new_f_x = op.vel_field_x[1:-1, 1:-1] + grad_phi[0]
+    new_f_y = op.vel_field_y[1:-1, 1:-1] + grad_phi[1]
+
+    ans = op.numerical_div(new_f_x, new_f_y)
+
+    plt.quiver(op.X, op.Y, vel_field_x_ans, vel_field_y_ans)
+    plt.quiver(op.X, op.Y, op.vel_field_x, op.vel_field_y, color = 'blue')
+    plt.quiver(op.X[1:-1,1:-1], op.Y[1:-1, 1:-1], new_f_x, new_f_y, color = 'red')
     #plt.quiver(x, y, grad_phi[0], grad_phi[1])
-    #plt.quiver(x, y, f[0], f[1])
-    #plt.show()
-    plt.quiver(x, y, f_modified[0],f_modified[1] )
-    #plt.pcolormesh(x,y,c_)
-    #plt.colorbar()
     plt.show()
-    print("done")
+    #plt.quiver(x, y, f_modified,f_modified)
+    # plt.pcolormesh(op.X, op.Y, f)
+    # plt.colorbar()
+    # plt.show()
+    # print("done")
