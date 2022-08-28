@@ -6,65 +6,15 @@
 import numpy as np
 import copy
 
-# constanst declarations
-NUM_OF_POINTS = 20  # number of points for the discretize grid
+############ constanst declarations
+NUM_OF_POINTS = 10  # number of points for the discretize grid
 D_SIZE = 1  # the size of the domain
-NUM_ITERATIONS = 400
 
 
-
-
-#vec_funct = lambda array_x, array_y :  np.array([array_y, array_x])  # test function f(x,y) = [y, x]
-#vec_funct = lambda array_x, array_y  :  np.array([array_x, array_y])  # test function f(x,y) = [x, y]
-#vec_funct = lambda array_x, array_y  :  np.array([array_x, array_y])  # test function [x + y, x + y]
-#vec_funct_in_x = lambda grid_x, grid_y : grid_x**2
-
-def vec_funct_in_x(grid_x, grid_y):
-    norm = grid_x**2+grid_y**2 
-    alpha = (norm + 1)**-1
-    beta = np.exp(-norm*0.5)
-
-    return grid_y * alpha + grid_x * beta
-
-def vec_funct_in_y(grid_x, grid_y):
-    norm = grid_x**2+grid_y**2 
-    alpha = (norm + 1)**-1
-    beta = np.exp(-norm*0.5)
-
-    return -grid_x * alpha + grid_y * beta
-
-
-def vec_funct_in_x_ans(grid_x, grid_y):
-    norm = grid_x**2+grid_y**2 
-    alpha = (norm + 1)**-1
-
-    return grid_y * alpha
-
-def vec_funct_in_y_ans(grid_x, grid_y):
-    norm = grid_x**2+grid_y**2 
-    alpha = (norm + 1)**-1
-    return -grid_x * alpha
-
-# def vec_funct_in_x(grid_x, grid_y):
-
-#     return grid_x
-
-# def vec_funct_in_y(grid_x, grid_y):
-#     return grid_y
-
-# def vec_funct(array_x, array_y ):
-#     """ return a vector """
-#     vec1 = np.array([array_y, -array_x])
-#     vec2 = np.array([array_x, array_y])
-#     first_term = 1/(np.linalg.norm(vec2**2) * 1)
-#     second_term = np.exp((-np.linalg.norm(vec2)**2)/2)
-#     ans = vec1*first_term + vec2*second_term
-#     return ans
-
-
+############ class
 class Operator:
-    def __init__(self) -> None:
-        #self.delta = 0.05
+    def __init__(self, vec_funct_in_x, vec_funct_in_y) -> None:
+  
         self.delta = D_SIZE / (NUM_OF_POINTS - 1)  # size of the grid
         self.x_size = np.linspace(0, D_SIZE, NUM_OF_POINTS)
         self.y_size = np.linspace(0, D_SIZE, NUM_OF_POINTS)
@@ -74,27 +24,96 @@ class Operator:
         self.vel_field_x = vec_funct_in_x(self.X, self.Y)
         self.vel_field_y = vec_funct_in_y(self.X, self.Y)
 
+
+    # partial derivatives
     def numerical_partial_deriv_of_x(self, vector_field_fx):  # central difference squeme for x
         delta_x = np.zeros_like(vector_field_fx)
 
-        # [1:-1, 1:-1]  all the points that are not in the boundaries
-        delta_x[1:-1, 1:-1] = (vector_field_fx[1:-1, 2:  ] - 
-                               vector_field_fx[1:-1, 0:-2] 
-                          ) / (                  
-                           2*self.delta )
+        for j in range(NUM_OF_POINTS):
+            for i in range(NUM_OF_POINTS):
+                if i == NUM_OF_POINTS - 1:  # backward difference
+                    delta_x[j, i] = (
+                        
+                    3 * vector_field_fx[j, i] -
+                    4 * vector_field_fx[j, i-1] +
+                    vector_field_fx[j, i-2] 
+                    ) / (
+                        2 * self.delta
+                    )
+                elif i == 0:  # foward difference
+                    delta_x[j, i] = (
+                    -3 * vector_field_fx[j, i] +
+                    4 * vector_field_fx[j, i+1] -
+                    vector_field_fx[j, i+2] 
+                    ) / (
+                        2*self.delta
+                    )
+
+                else:
+                    delta_x[j, i] = (
+                        vector_field_fx[j, i+1] -
+                        vector_field_fx[j, i-1] 
+                    ) / (
+                        2*self.delta
+                    )
+
+
         return delta_x
 
-    def numerical_partial_deriv_of_y(self, vector_field_fy):  # central difference squeme for y
+    def numerical_partial_deriv_of_y(self, vector_field_fy):  # central difference squeme for x
         delta_y = np.zeros_like(vector_field_fy)
 
-        # [1:-1, 1:-1]  all the points that are not in the boundaries
-        delta_y[1:-1, 1:-1] = (vector_field_fy[2:  , 1:-1] - 
-                               vector_field_fy[0:-2, 1:-1] 
-                          ) / (                  
-                           2*self.delta )
+        for i in range(NUM_OF_POINTS):
+            for j in range(NUM_OF_POINTS):
+                if j == NUM_OF_POINTS - 1:  # backward difference
+                    delta_y[j, i] = (
+                    3 * vector_field_fy[j, i] -
+                    4 * vector_field_fy[j-1, i] +
+                    vector_field_fy[j-2,i]
+                    ) / (
+                        2 * self.delta
+                    )
+                elif j == 0:  # foward difference
+                    delta_y[j, i] = (
+                    -3 * vector_field_fy[j, i] +
+                    4 * vector_field_fy[ j + 1, i] -
+                    vector_field_fy[j + 2, i]
+                    ) / (
+                        2 * self.delta
+                    )
+
+                else:
+                    delta_y[j, i] = (
+                        vector_field_fy[j+1, i] -
+                        vector_field_fy[j-1, i] 
+                    ) / (
+                        2*self.delta
+                    )
+
+
         return delta_y
+    
+    # def numerical_partial_deriv_of_x(self, vector_field_fx):  # central difference squeme for x
+    #     delta_x = np.zeros_like(vector_field_fx)
 
+    #     # [1:-1, 1:-1]  all the points that are not in the boundaries
+    #     delta_x[1:-1, 1:-1] = (vector_field_fx[1:-1, 2:  ] - 
+    #                            vector_field_fx[1:-1, 0:-2] 
+    #                       ) / (                  
+    #                        2*self.delta )
+    #     return delta_x
 
+    # def numerical_partial_deriv_of_y(self, vector_field_fy):  # central difference squeme for y
+    #     delta_y = np.zeros_like(vector_field_fy)
+
+    #     # [1:-1, 1:-1]  all the points that are not in the boundaries
+    #     delta_y[1:-1, 1:-1] = (vector_field_fy[2:  , 1:-1] - 
+    #                            vector_field_fy[0:-2, 1:-1] 
+    #                       ) / (                  
+    #                        2*self.delta )
+    #     return delta_y
+
+    # operators
     def numerical_div(self, vector_field_fx, vector_field_fy):
         """
             takes in a vector function, returns a scalar
@@ -104,117 +123,14 @@ class Operator:
 
         return partial_x + partial_y
 
-
     def numerical_grad(self, scalar_field):
         """
             takes in a scalar function, return a vector
         """
         partial_x = self.numerical_partial_deriv_of_x(scalar_field)
         partial_y = self.numerical_partial_deriv_of_y(scalar_field)
-        
-        # boundaries
-        # partial_x[:,1] = scalar_field[:,1]
-        # partial_x[:,-1] = scalar_field[:,-1]
 
-        # partial_y[1,:] = scalar_field[1,:]
-        # partial_y[-1,:] = scalar_field[-1,:]
-
-        return [partial_x,  partial_y]
-        
-
-    # def jacobi_iterator(self, vector):
-    #     size_of_v = vector[0][0].size
-    #     grid = vector[0][0]
-    #     #y_grid = vector[0][0]
-    #     jacobi_grid = []
-    #     # we iterate over every x,y coordinate and create the grid
-    #     for i in range(size_of_v):
-    #         jacobi_grid.append([])
-    #         for j in range(size_of_v):
-    #             jacobi_grid[i].append(0)
-
-    #     jacobi_grid_ = copy.deepcopy(jacobi_grid)
-
-    #     # we try to compute for every grid point the new value
-    #     # i : row and j : column
-    #     while True:
-
-    #         for i in range(size_of_v):
-    #             for j in range(size_of_v):
-    #                 if (i != 0 and i != size_of_v - 1) and (j != 0 and j != size_of_v - 1):
-    #                     vector_val = [grid[j],grid[i]]  # (x,y) coordinates
-
-    #                     # for vertical values
-    #                     if i == 0:
-    #                         up = 0
-    #                     else:
-    #                         y_pos = i - 1
-    #                         x_pos = j
-
-    #                         up = jacobi_grid[y_pos][x_pos]
-
-    #                     if i == size_of_v - 1:
-    #                         down = 0
-    #                     else:
-    #                         y_pos = i + 1
-    #                         x_pos = j
-    #                         down = jacobi_grid[y_pos][x_pos]
-                        
-
-    #                     # for horizontal values
-    #                     if j ==  size_of_v - 1:
-    #                         right = 0
-    #                     else:
-    #                         y_pos = i
-    #                         x_pos = j + 1
-    #                         right = jacobi_grid[y_pos][x_pos]
-
-    #                     if j == 0:
-    #                         left = 0
-    #                     else:
-    #                         y_pos = i
-    #                         x_pos = j - 1
-    #                         left = jacobi_grid[y_pos][x_pos]
-
-    #                     rho = self.numerical_divergence(vec_funct(vector_val[0],vector_val[1]))
-                                            
-    #                     jacobi_grid_[i][j] = (rho*self.delta**2 + \
-    #                                           up + down + left + right)*0.25
-
-    #         e1 = np.linalg.norm(jacobi_grid_, ord=np.inf)  # infinity norm
-    #         e0 = np.linalg.norm(jacobi_grid, ord=np.inf)
-    #         error = abs(e0-e1)
-    #         if error < 2e-4:
-    #             break
-    #         jacobi_grid = copy.deepcopy(jacobi_grid_)
-    #     return jacobi_grid
-
-    def jacobi_iterator(self):
-        phi = np.zeros_like(self.vel_field_x)
-        rho = self.numerical_div(self.vel_field_x, self.vel_field_y)
-
-        while True:
-            phi_temp = copy.deepcopy(phi)
-            for y_dir in range(1, NUM_OF_POINTS - 1, 1):
-                for x_dir in range(1, NUM_OF_POINTS - 1, 1):
-                    up = phi_temp[y_dir-1, x_dir]
-                    down = phi_temp[y_dir + 1, x_dir]
-                    left = phi_temp[y_dir, x_dir - 1]
-                    right = phi_temp[y_dir, x_dir + 1]
-                    center = rho[y_dir, x_dir]
-                    phi[y_dir, x_dir] = (-center * self.delta**2  +
-                                        down + 
-                                        up +
-                                        left +
-                                        right                                    
-                                        ) * 0.25
-            e1 = np.linalg.norm(phi, ord=np.inf)  # infinity norm
-            e0 = np.linalg.norm(phi_temp, ord=np.inf)
-            error = abs(e0-e1)
-            if error < 2e-10:
-                break
-
-        return phi
+        return [partial_x,  partial_y]      
 
     def laplace(self, f):
         diff = np.zeros_like(f)
@@ -235,36 +151,53 @@ class Operator:
         )
         return diff
 
-    # def numerical_gradient_phi(self, grid):
+    # jacobi iteration
+    def jacobi_iterator(self):
+        phi = np.zeros_like(self.vel_field_x)
+        phi_temp = np.zeros_like(self.vel_field_x)
+        rho = self.numerical_div(self.vel_field_x, self.vel_field_y)
+        counter = 0
 
-    #     size = len(grid)
-    #     ans_grid_x  = copy.deepcopy(grid)  # we create a copy of the original grid
-    #     ans_grid_y = copy.deepcopy(grid) 
+        while True:
+            phi = np.zeros_like(phi_temp)
+            for y_dir in range(1, NUM_OF_POINTS - 1, 1):
+                for x_dir in range(1, NUM_OF_POINTS - 1, 1):
+                    up = phi_temp[y_dir-1, x_dir]
+                    down = phi_temp[y_dir + 1, x_dir]
+                    left = phi_temp[y_dir, x_dir - 1]
+                    right = phi_temp[y_dir, x_dir + 1]
+                    center = rho[y_dir, x_dir]
+                    phi[y_dir, x_dir] = (center * self.delta**2  +
+                                        down + 
+                                        up +
+                                        left +
+                                        right                                    
+                                        ) * 0.25
+            
         
-    #     for i in range(1,size-1): # we iterate over the rows (vertical direction)
-    #         for j in range(1,size-1):  # we iterate over the columns (horizontal direction)
 
-    #             # for partial of x we check left and right
-    #             # we begin with left and check boundaries
-    #             left = grid[i][j-1]
-    #             right = grid[i][j+1]
+            e1 = np.linalg.norm(phi, ord=np.inf)  # infinity norm
+            e0 = np.linalg.norm(phi_temp, ord=np.inf)
+            error = abs(e0-e1)
+            if error < 2e-10 or counter > 10000:
+                break
 
-    #             partial_x = (right - left)/2*self.delta
+            counter += 1
 
-    #             # now we check up and down
-    #             up = grid[i+1][j]
-    #             down = grid[i-1][j]
+            phi_temp = copy.deepcopy(phi)
 
-    #             partial_y = (up - down)/2*self.delta
+        # Neumann boundary conditions
+        # phi[:, -1] = phi[:, -2]  # condition at the right
+        # phi[0, :] = phi[1, :]  # condition at the top
+        # phi[:, 0] = phi[:, 1] # condition at the left
+        # phi[-1, :] = phi[-2, :]  # condition at the bottom
 
-    #             ans_grid_x[i][j] = partial_x
-    #             ans_grid_y[i][j] = partial_y
-
-    #             print("done")
-
-    #     return [ans_grid_x,ans_grid_y]
+        return phi
 
 
+
+
+############ testing of the script
 if __name__ == "__main__":
     o = Operator()
     print(o.X)
