@@ -9,13 +9,13 @@ import copy
 from mpi4py import MPI
 
 ############ constanst declarations
-NUM_OF_POINTS = 20  # number of points for the discretize grid
+NUM_OF_POINTS = 18  # number of points for the discretize grid --> try with 40322 to scale from 1 to 8 ;)
 D_SIZE = 1  # the size of the domain
 comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
 size = comm.Get_size()  # how many processor there are
 name = comm.Get_name()
-N = 9  # how many columns will i store per processor (num of cols-2)/(num of processors)
+N = (NUM_OF_POINTS-2)//2  # how many columns will i store per processor (num of cols-2)/(num of processors)
 
 ############ class
 class Operator:
@@ -251,44 +251,50 @@ class Operator:
                 left_boundary = l_phi[:,0]
                 right_boundary = l_phi[:,-2]
 
-                ################################################## we make the sends for left and right boundaries
-                # even processors send and odd ones receive
-                if rank%2 == 0:
+                ################################################## we make the interchange of boundaries
+                last_pro = size - 1
+                # even processors send (to the right) and odd ones receive CASE 1
+                if rank%2 == 0 and last_pro != rank:
                     #print(f"sending from... {rank} and I'm sending {right_boundary}")
-                    comm.send(l_phi[:,-2], dest=1)
+                    comm.send(l_phi[:,-2], dest=rank+1)
                     
                 else:
                     #print(f"I'm {rank} and my current value is {l_phi} i'm suppose to change my left column")
-                    left_boundary = comm.recv(source=0)
+                    left_boundary = comm.recv(source=rank-1)
                     l_phi_temp[:,0] = left_boundary
                     #print(f"\nI'm {rank} and my new left column is: {l_phi_temp}")
 
-                # odd processors send and even ones receive
-                if rank%2 != 0:  # odd processors
+
+                    
+
+                # odd processors send (to the left) and even ones receive CASE 2
+                if rank%2 != 0:
                     #print(f"sending from... {rank} and I'm sending {right_boundary}")
-                    comm.send(l_phi[:,1], dest=0)  # sending left boundary
+                    comm.send(l_phi[:,1], dest=rank-1)  # sending left boundary
                     
                 else:
                     #print(f"I'm {rank} and my current value is {l_phi} i'm suppose to change my right column")
-                    right_boundary = comm.recv(source=1)
-                    l_phi_temp[:,-1] = right_boundary
+                    if rank != last_pro:
+                        right_boundary = comm.recv(source=rank+1)
+                        l_phi_temp[:,-1] = right_boundary
                     #print(f"\nI'm {rank} and my new right column is: {l_phi_temp}")
 
 
-                ### if your are not the first neither the last processor
-                if rank != 0 and rank != size-1:
-                    #print("im here")
-                    # for even processors
-                    if rank%2==0:
+                ### even ones send (to the left) and odd ones receive CASE 3
+                if rank%2==0:
+                    if rank != 0:
                         comm.send(l_phi[:, 1], dest=rank-1)  # send your left column
-                    else:
+                else:
+                    if rank != last_pro:
                         right_boundary = comm.recv(source=rank+1)
                         l_phi_temp[:,-1] = right_boundary
 
-                    # for odd processors
-                    if rank%2!= 0:
+                # odd ones send (to the left) and even ones receive CASE 4
+                if rank%2!= 0:
+                    if rank != last_pro:
                         comm.send(l_phi[:,-1], dest=rank+1)
-                    else:
+                else:
+                    if rank != 0:
                         left_boundary = comm.recv(source=rank-1)
                         l_phi_temp[:,1] = left_boundary
 
@@ -324,7 +330,7 @@ class Operator:
 if __name__ == "__main__":
     o = Operator()
     print(o.X)
-    vel_field_x = vec_funct_in_x(o.X, o.Y)
-    vel_field_y = vec_funct_in_y(o.X, o.Y)
-    o.numerical_partial_deriv_of_x(vel_field_x)
-    o.numerical_partial_deriv_of_y(vel_field_y)
+    # vel_field_x = vec_funct_in_x(o.X, o.Y)
+    # vel_field_y = vec_funct_in_y(o.X, o.Y)
+    # o.numerical_partial_deriv_of_x(vel_field_x)
+    # o.numerical_partial_deriv_of_y(vel_field_y)
