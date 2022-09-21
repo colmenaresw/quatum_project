@@ -7,15 +7,15 @@ from random import random
 import numpy as np
 import copy
 from mpi4py import MPI
-
+import time
 ############ constanst declarations
-NUM_OF_POINTS = 18  # number of points for the discretize grid --> try with 40322 to scale from 1 to 8 ;)
+NUM_OF_POINTS = 62 # number of points for the discretize grid --> try with 40322 to scale from 1 to 8 ;)
 D_SIZE = 1  # the size of the domain
 comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
 size = comm.Get_size()  # how many processor there are
 name = comm.Get_name()
-N = (NUM_OF_POINTS-2)//2  # how many columns will i store per processor (num of cols-2)/(num of processors)
+#N = (NUM_OF_POINTS-2)//size  # how many columns will i store per processor (num of cols-2)/(num of processors)
 
 ############ class
 class Operator:
@@ -154,9 +154,11 @@ class Operator:
         phi_temp = np.zeros_like(self.vel_field_x)  # allocate space for the temporary answer
         rho = self.numerical_div(self.vel_field_x, self.vel_field_y)  # source function of poisson equation
         counter = 0
-
+        np.set_printoptions(precision=3)
         while True:
             phi = np.zeros_like(phi_temp)
+            #print(f"###########\n{phi_temp}\n##########")
+            #time.sleep(0.5)
             # we iterate over the internal grid
             for y_dir in range(1, NUM_OF_POINTS - 1, 1):
                 for x_dir in range(1, NUM_OF_POINTS - 1, 1):
@@ -183,7 +185,9 @@ class Operator:
 
             error = abs(phi-phi_temp)
             error = error.max()
+            
             if error < 2e-10 or counter > 10000:
+                #print("counter serial is: ", counter)
                 break
 
             counter += 1
@@ -197,18 +201,29 @@ class Operator:
             """
                 implementation of the jacobi iteration in parallel
             """
-            print("hi, i'm: ", rank)
+            #print("hi, i'm: ", rank)
+            N_of_each_p = self.how_many_columns()  # how many columns each processor will store
+            N = N_of_each_p[rank]  # the personal for this processor
+            i_m = self.index_map(N_of_each_p)  # map of indices to assing the velocity field
+            #print(f"Im {rank} and my N is: {N}")
             counter = 0
             dimen = self.vel_field_x[:, 0:N+2].shape
             num_of_p = dimen[1]
             l_phi_temp = np.zeros(dimen)  # allocate space for the temporary answer in the local processor
+            #print(f"hi, im {rank}, and my N is {N}")
+            #print(f"hi, im {rank}, and my left column is: {rank*N} and my right column is {rank*N + N + 2}")
+            #print(f" im {rank} and my indices will go {i_m[rank][0]} to {i_m[rank][1]}")
             l_rho = self.numerical_div(self.vel_field_x, 
-                                       self.vel_field_y)[:, rank*N : rank*N + N + 2]  # source function of poisson equation for the local processor
+                                       self.vel_field_y)[:, i_m[rank][0] : i_m[rank][1]]  # source function of poisson equation for the local processor
             
 
             while True:
                 l_phi = np.zeros_like(l_phi_temp)
+                # if counter == 0:
+                #     print(f"hi, im {rank}, and my shape is {l_phi.shape}")
                 # we iterate over the internal grid
+                # if counter == 0:
+                #     print(f"hi, im {rank}, and I will iterate between 1 and {NUM_OF_POINTS - 1} in rows and 1 and {num_of_p-2} in columns")
                 for y_dir in range(1, NUM_OF_POINTS - 1, 1):
                     for x_dir in range(1, num_of_p-1, 1):
                         # store the values of the stencil
@@ -227,79 +242,103 @@ class Operator:
                                             ) * 0.25
 
                 ### we compute the local error
-                l_error = abs(l_phi-l_phi_temp)
+                l_error = abs(l_phi[1:-1,1:-1]-l_phi_temp[1:-1,1:-1])
                 l_error = l_error.max()
+                # if rank == 2 and counter > 260:
+                #     print(f"im {rank} and my local error is\n:{l_phi_temp}")
 
                 # we gather the errors to check for the stopping criteria
                 # perform the reduction
                 value_max = np.array(0.0,'d')
                 comm.Reduce(l_error, value_max, op=MPI.MAX, root=0)
-                counter += 1
+                
                 
 
                 # we check for the stopping criteria by sending the error to every processor
                 value_max = comm.bcast(value_max, root=0)
-                if value_max <= 2e-10 or counter > 10000:
-                    print("counter is: ", counter)
+                
+                #print("counter is: ", counter)
+                if value_max < 2e-10 or counter >=  10000:
+                    #print("counter for parallel is: ", counter)
                     break
+                counter += 1
                 
 
                 # if we need to continue here we create a copy for the next iteration
                 l_phi_temp = copy.deepcopy(l_phi)
 
-                # we exchange the boundaries to compute the next iteration
-                left_boundary = l_phi[:,0]
-                right_boundary = l_phi[:,-2]
+
+
 
                 ################################################## we make the interchange of boundaries
                 last_pro = size - 1
+                #print(last_pro)
                 # even processors send (to the right) and odd ones receive CASE 1
                 if rank%2 == 0 and last_pro != rank:
-                    #print(f"sending from... {rank} and I'm sending {right_boundary}")
+                    #print(f"__do i arrive here? {rank}")
+                    #print(f"\nsending from... {rank} and I'm sending \n{l_phi[:,-2]} from \n{l_phi}")
                     comm.send(l_phi[:,-2], dest=rank+1)
                     
-                else:
+                elif rank%2!= 0:
+                    
+                    #print(f"__do i arrive here? {rank}")
                     #print(f"I'm {rank} and my current value is {l_phi} i'm suppose to change my left column")
                     left_boundary = comm.recv(source=rank-1)
+                    #print(f"I'm {rank} receiving from... {rank-1} and I'm receivng \n{left_boundary} to my first column in \n{l_phi_temp}")
                     l_phi_temp[:,0] = left_boundary
-                    #print(f"\nI'm {rank} and my new left column is: {l_phi_temp}")
+                    #print(f"\nI'm {rank} and my new left column is: {l_phi_temp}\n####################################\n")
 
 
-                    
+                #print(f"do i arrive here? {rank}")
 
                 # odd processors send (to the left) and even ones receive CASE 2
                 if rank%2 != 0:
-                    #print(f"sending from... {rank} and I'm sending {right_boundary}")
+                    #print(f"\nsending from... {rank} and I'm sending \n{l_phi[:,1]} \nfrom \n{l_phi} to {rank-1}")
                     comm.send(l_phi[:,1], dest=rank-1)  # sending left boundary
                     
                 else:
-                    #print(f"I'm {rank} and my current value is {l_phi} i'm suppose to change my right column")
+                    
                     if rank != last_pro:
                         right_boundary = comm.recv(source=rank+1)
+                        #print(f"\nI'm {rank} receiving from... {rank+1} and I'm receivng \n{right_boundary} to my last column in \n{l_phi_temp}")
                         l_phi_temp[:,-1] = right_boundary
-                    #print(f"\nI'm {rank} and my new right column is: {l_phi_temp}")
+                        #print(f"\nI'm {rank} and my new right column is: {l_phi_temp}\n####################################\n")
 
-
+                
                 ### even ones send (to the left) and odd ones receive CASE 3
                 if rank%2==0:
                     if rank != 0:
+                        #print(f"\nsending from... {rank} and I'm sending \n{l_phi[:,1]} \nfrom \n{l_phi} to {rank-1}")
                         comm.send(l_phi[:, 1], dest=rank-1)  # send your left column
                 else:
                     if rank != last_pro:
                         right_boundary = comm.recv(source=rank+1)
+                        #print(f"\nI'm {rank} receiving from... {rank+1} and I'm receivng \n{right_boundary} \nto my last column in \n{l_phi_temp}")
                         l_phi_temp[:,-1] = right_boundary
+                        #print(f"\nI'm {rank} and my new right column is: \n{l_phi_temp}\n####################################\n")
 
                 # odd ones send (to the left) and even ones receive CASE 4
                 if rank%2!= 0:
                     if rank != last_pro:
-                        comm.send(l_phi[:,-1], dest=rank+1)
+                        #print(f"\nsending from... {rank} and I'm sending \n{l_phi[:,-2]} \nfrom \n{l_phi} to \n{rank+1}")
+                        comm.send(l_phi[:,-2], dest=rank+1)
                 else:
                     if rank != 0:
                         left_boundary = comm.recv(source=rank-1)
-                        l_phi_temp[:,1] = left_boundary
+                        #print(f"\nI'm {rank} receiving from... {rank-1} and I'm receivng \n{left_boundary} \nto my first column in \n{l_phi_temp}")
+                        l_phi_temp[:,0] = left_boundary
+                        #print(f"\nI'm {rank} and my new left column is: \n{l_phi_temp}\n####################################\n")
+
+                # if rank == 0:
+                #     print(f"\ncounter is: {counter} Im 0 and my third column is: \n{l_phi_temp[:,2]} \nand four columns is:\n {l_phi_temp[:,3]}")
+                # elif rank == 1:
+                #     print(f"\ncounter is: {counter} Im 1 and my first column is:\n {l_phi_temp[:,0]} \nand second columns is: \n{l_phi_temp[:,1]}")
+
+
 
             ############################ we gather the result
             sendbuf = l_phi[1:-1, 1:-1]
+            #print(f"hi im {rank} and im sending \n{sendbuf}")
             rows = sendbuf.shape[0]
             cols = sendbuf.shape[1]
             dim = rows * cols
@@ -314,16 +353,54 @@ class Operator:
             elif rank == 0:
 
                 all_phi = np.zeros((NUM_OF_POINTS, NUM_OF_POINTS))  # this is the final matrix
+                #print(f"im {rank} with shape {l_phi.shape} and i'm fitting my data in columns index {rank*N + 1} : {rank*N + N + 1}")
                 all_phi[1:-1, rank*N + 1 : rank*N + N + 1] = l_phi[1:-1, 1:-1]  # for the first processor we allocate the result
+                
+                result_vec = [0 for i in range(size)]  # a vector with the result from the other processors
 
-
-                data = np.empty(dim, dtype='d')  # allocate space to receive the array
                 for each_p in range(1,size):
+                    N_ = N_of_each_p[each_p-1]  # where to start
+                    N_d = N_of_each_p[each_p]  # how many columns do i need to fit
+                    #print(f"im {each_p} and my N_:{N_} and my N_d: {N_d} and my N:{N}")
+                    dim = rows*N_d
+                    data = np.empty(dim, dtype='d')  # allocate space to receive the array
                     comm.Recv(data, source=each_p)
-                    all_phi[1:-1, each_p*N + 1 : each_p*N + N + 1] = data.reshape((rows,cols))
+                    #print(f"im {each_p} and i'm fitting my data in columns index {each_p*N_ + 1} : {each_p*N_d + N_ + 1}")
+                    result_vec[each_p] = data.reshape((rows,N_d))
+                    all_phi[1:-1, N + 1 : N + N_d + 1] = result_vec[each_p]
+                    N = N + N_d
 
                         
-            return (all_phi,rank)
+            return all_phi
+
+    def how_many_columns(self):
+        """
+            here we determine how many columns will store my processor
+        """
+        n = [0 for i in range(size)]
+        for column in range(1,NUM_OF_POINTS - 1):
+            c = column % size
+            #print(f"n : {c}")
+            n[c] += 1
+
+        return n
+
+    def index_map(self, n_of_pro):
+        """
+            here we determine the index of every processor in the final solution
+            n_of_pro: how many columns each processor stores
+        """
+        map_of_indices = {}
+        for i in range(len(n_of_pro)):
+            if i == 0:
+                map_of_indices[i] = (i, n_of_pro[i]+1)
+            else:
+                map_of_indices[i] = (map_of_indices[i-1][1]-1, map_of_indices[i-1][1] + n_of_pro[i])
+        return map_of_indices
+
+
+
+
 
 
 ############ testing of the script
