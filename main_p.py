@@ -4,6 +4,7 @@ Test module
 
 """
 from array import array
+import mpi4py
 import numpy as np
 import matplotlib.pyplot as plt
 import Operators as o
@@ -70,12 +71,16 @@ if __name__ == "__main__":
     # divergence expected
     div_exp = divergence_expected(op.X, op.Y)
 
-    start_time_ = time.time()  # we start the measure
+    start_time_ = mpi4py.MPI.Wtime()  # we start the measure
     phi_ = op.p_jacobi_iterator()
-    finish_time_ = time.time()  # we start the measure
+    finish_time_ = mpi4py.MPI.Wtime()  # we start the measure
     
-    print(f"for processor:{rank} the result is: \ntime parallel: {finish_time_ - start_time_}")
-
+    if rank == 0:  # we record the time of the execution
+        with open('time_log.txt', 'a+') as f:
+            f.write(f'{size};{finish_time_ - start_time_}\n')
+            print(f'for {size} the time is {finish_time_ - start_time_}')
+    #print(f"for processor:{rank} the result is: \ntime parallel: {finish_time_ - start_time_}")
+    #print(f"for processor:{rank} the result is: \ntime parallel: {finish_time_ }")
 
 
     if rank == 0:

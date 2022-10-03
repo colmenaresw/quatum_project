@@ -8,8 +8,9 @@ import numpy as np
 import copy
 from mpi4py import MPI
 import time
-############ constanst declarations
-NUM_OF_POINTS = 62 # number of points for the discretize grid --> try with 40322 to scale from 1 to 8 ;)
+
+#####----- constanst declarations
+NUM_OF_POINTS = 2**6+2 # number of points for the discretize grid
 D_SIZE = 1  # the size of the domain
 comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
@@ -17,7 +18,7 @@ size = comm.Get_size()  # how many processor there are
 name = comm.Get_name()
 #N = (NUM_OF_POINTS-2)//size  # how many columns will i store per processor (num of cols-2)/(num of processors)
 
-############ class
+#####-----
 class Operator:
     def __init__(self, vec_funct_in_x, vec_funct_in_y) -> None:
         """
@@ -35,13 +36,13 @@ class Operator:
         self.vel_field_y = vec_funct_in_y(self.X, self.Y)
 
 
-    # partial derivatives
+    #####----- partial derivatives
     def numerical_partial_deriv_of_x(self, vector_field_fx):  # central difference squeme for x
         delta_x = np.zeros_like(vector_field_fx)
         num_of_col = vector_field_fx.shape[1]
         for j in range(NUM_OF_POINTS):
             for i in range(num_of_col):
-                if i == num_of_col - 1:  # backward difference
+                if i == num_of_col - 1:  # backward difference for right boundary
                     delta_x[j, i] = (
                         
                     3 * vector_field_fx[j, i] -
@@ -50,7 +51,7 @@ class Operator:
                     ) / (
                         2 * self.delta
                     )
-                elif i == 0:  # foward difference
+                elif i == 0:  # foward difference for left boundary
                     delta_x[j, i] = (
                     -3 * vector_field_fx[j, i] +
                     4 * vector_field_fx[j, i+1] -
@@ -84,7 +85,7 @@ class Operator:
                     ) / (
                         2 * self.delta
                     )
-                elif j == 0:  # foward difference
+                elif j == 0:  # foward difference for top boundary
                     delta_y[j, i] = (
                     -3 * vector_field_fy[j, i] +
                     4 * vector_field_fy[ j + 1, i] -
@@ -105,7 +106,7 @@ class Operator:
         return delta_y
     
 
-    # operators
+    #####----- operators
     def numerical_div(self, vector_field_fx, vector_field_fy):
         """
             takes in a vector function, returns a scalar
@@ -146,7 +147,7 @@ class Operator:
         return diff
 
 
-    # jacobi iteration
+    #####----- jacobi iteration
     def jacobi_iterator(self):
         """
             implementation of the jacobi iteration
@@ -157,9 +158,6 @@ class Operator:
         np.set_printoptions(precision=3)
         while True:
             phi = np.zeros_like(phi_temp)
-            #print(f"###########\n{phi_temp}\n##########")
-            #time.sleep(0.5)
-            # we iterate over the internal grid
             for y_dir in range(1, NUM_OF_POINTS - 1, 1):
                 for x_dir in range(1, NUM_OF_POINTS - 1, 1):
                     # store the values of the stencil
@@ -176,13 +174,7 @@ class Operator:
                                         left +
                                         right                                    
                                         ) * 0.25
-            
-        
-
-            # e1 = np.linalg.norm(phi, ord=np.inf)  # infinity norm
-            # e0 = np.linalg.norm(phi_temp, ord=np.inf)
-            # error = abs(e0-e1)
-
+    
             error = abs(phi-phi_temp)
             error = error.max()
             
@@ -196,23 +188,19 @@ class Operator:
         return phi
 
 
-    # parallel jacobi
+    #####----- parallel jacobi
     def p_jacobi_iterator(self):
             """
                 implementation of the jacobi iteration in parallel
             """
-            #print("hi, i'm: ", rank)
+            
             N_of_each_p = self.how_many_columns()  # how many columns each processor will store
             N = N_of_each_p[rank]  # the personal for this processor
             i_m = self.index_map(N_of_each_p)  # map of indices to assing the velocity field
-            #print(f"Im {rank} and my N is: {N}")
             counter = 0
             dimen = self.vel_field_x[:, 0:N+2].shape
             num_of_p = dimen[1]
             l_phi_temp = np.zeros(dimen)  # allocate space for the temporary answer in the local processor
-            #print(f"hi, im {rank}, and my N is {N}")
-            #print(f"hi, im {rank}, and my left column is: {rank*N} and my right column is {rank*N + N + 2}")
-            #print(f" im {rank} and my indices will go {i_m[rank][0]} to {i_m[rank][1]}")
             l_rho = self.numerical_div(self.vel_field_x, 
                                        self.vel_field_y)[:, i_m[rank][0] : i_m[rank][1]]  # source function of poisson equation for the local processor
             
@@ -373,6 +361,8 @@ class Operator:
                         
             return all_phi
 
+
+    #####----- helping methods
     def how_many_columns(self):
         """
             here we determine how many columns will store my processor

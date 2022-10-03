@@ -9,3 +9,5 @@ ans.csv
 phi.csv
 data_csv
 mpi_test.py
+job_py.sh
+time_log.txt

@@ -28,15 +28,15 @@ if __name__ == "__main__":
 
     # velocity field declaration
     def vec_funct_in_x_ans(grid_x, grid_y):
-        #norm = grid_x**2+grid_y**2 
-        #alpha = (norm + 1)**-1
-        alpha = 1/3
+        norm = grid_x**2+grid_y**2 
+        alpha = (norm + 1)**-1
+        #alpha = 1/3
         return grid_y * alpha
 
     def vec_funct_in_y_ans(grid_x, grid_y):
-        #norm = grid_x**2+grid_y**2 
-        #alpha = (norm + 1)**-1
-        alpha = 1/3
+        norm = grid_x**2+grid_y**2 
+        alpha = (norm + 1)**-1
+        #alpha = 1/3
         return -grid_x * alpha
 
     def vec_funct_in_x(grid_x, grid_y):
@@ -59,7 +59,7 @@ if __name__ == "__main__":
         return (2-grid_x**2-grid_y**2)*beta
 
 
-    ################################################# an instance for testing
+    ###--- an instance for testing
     op = o.Operator(vec_funct_in_x, vec_funct_in_y)
 
     # corrected velocity
@@ -87,20 +87,22 @@ if __name__ == "__main__":
     grad_phi = op.numerical_grad(phi)
 
     # every time i apply the numerical derivative i lost information around the borders
-    a = op.numerical_div(grad_phi[0], grad_phi[1])
+    #a = op.numerical_div(grad_phi[0], grad_phi[1])
     #a_ = op.numerical_div(numpy_grad[1], numpy_grad[0])
     #c = -div_vel[2:-2,2:-2] - a
     
-    # correction
+    #--- correction
     new_f_x = op.vel_field_x + grad_phi[0]
     new_f_y = op.vel_field_y + grad_phi[1]
 
-    ans = op.numerical_div(new_f_x, new_f_y)
+    correc = op.numerical_div(new_f_x, new_f_y)
+
+    #--- cvs writings
     # write_into_csv(ans, 'ans')
     # write_into_csv(phi, 'phi')
     # write_into_csv(laplace_phi, 'laplace')
-    # write_into_csv(div_vel, 'div_vel')
-    # write_into_csv(div_exp, 'div_exp')
+    # write_into_csv(div_vel, 'div_vel')  # numerical divergence of the vector field
+    # write_into_csv(div_exp, 'div_exp')  # mathematical divergence of the vector field
     # write_into_csv(dif, 'dif')
 
     #plt.quiver(op.X, op.Y, vel_field_x_ans_grid, vel_field_y_ans_grid)
@@ -109,7 +111,16 @@ if __name__ == "__main__":
     #plt.quiver(x, y, grad_phi[0], grad_phi[1])
     #plt.show()
     #plt.quiver(x, y, f_modified,f_modified)
-    # plt.pcolormesh(op.X[1:-1,1:-1], op.Y[1:-1,1:-1], ans[1:-1,1:-1], vmin=-2, vmax=2)
+    #--- plotting of correction
+    # plt.figure()
+    # plt.pcolormesh(op.X[1:-1,1:-1], op.Y[1:-1,1:-1], correc[1:-1,1:-1], vmin=-2, vmax=2)
+    # plt.colorbar()
+
+    # #--- plotting of poisson solution
+    # plt.figure()
+    # plt.pcolormesh(op.X[1:-1,1:-1], op.Y[1:-1,1:-1], dif[1:-1,1:-1], vmin=-2, vmax=2)
     # plt.colorbar()
     # plt.show()
+    
+
     print("done")
