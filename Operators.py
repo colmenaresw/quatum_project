@@ -10,7 +10,7 @@ from mpi4py import MPI
 import time
 
 #####----- constanst declarations
-NUM_OF_POINTS = 2**6+2 # number of points for the discretize grid
+NUM_OF_POINTS = 8 # number of points for the discretize grid
 D_SIZE = 1  # the size of the domain
 comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
@@ -113,6 +113,8 @@ class Operator:
         """
         partial_x = self.numerical_partial_deriv_of_x(vector_field_fx)
         partial_y = self.numerical_partial_deriv_of_y(vector_field_fy)
+        with open('rho.npy', 'wb') as f:
+            np.save(f, partial_x + partial_y)
 
         return partial_x + partial_y
 
@@ -153,9 +155,9 @@ class Operator:
             implementation of the jacobi iteration
         """
         phi_temp = np.zeros_like(self.vel_field_x)  # allocate space for the temporary answer
-        rho = self.numerical_div(self.vel_field_x, self.vel_field_y)  # source function of poisson equation
+        rho = self.source_generator()
         counter = 0
-        np.set_printoptions(precision=3)
+        #np.set_printoptions(precision=3)
         while True:
             phi = np.zeros_like(phi_temp)
             for y_dir in range(1, NUM_OF_POINTS - 1, 1):
@@ -196,15 +198,21 @@ class Operator:
             
             N_of_each_p = self.how_many_columns()  # how many columns each processor will store
             N = N_of_each_p[rank]  # the personal for this processor
+            #print(f'this is the distribution of columns: {N_of_each_p}')
             i_m = self.index_map(N_of_each_p)  # map of indices to assing the velocity field
             counter = 0
             dimen = self.vel_field_x[:, 0:N+2].shape
             num_of_p = dimen[1]
             l_phi_temp = np.zeros(dimen)  # allocate space for the temporary answer in the local processor
+            # with open('rho.npy', 'rb') as f:
+            #     l_rho = np.load(f)
             l_rho = self.numerical_div(self.vel_field_x, 
                                        self.vel_field_y)[:, i_m[rank][0] : i_m[rank][1]]  # source function of poisson equation for the local processor
+            #print(l_rho.shape)
+            #l_rho = l_rho[:, i_m[rank][0] : i_m[rank][1]+1]
+            #print(f'im {rank} and im {i_m[rank][0]};{i_m[rank][1]+1}')
+            #print(l_rho.shape)
             
-
             while True:
                 l_phi = np.zeros_like(l_phi_temp)
                 # if counter == 0:
@@ -246,7 +254,7 @@ class Operator:
                 value_max = comm.bcast(value_max, root=0)
                 
                 #print("counter is: ", counter)
-                if value_max < 2e-10 or counter >=  10000:
+                if value_max < 2e-10 or counter >=  1000:
                     #print("counter for parallel is: ", counter)
                     break
                 counter += 1
@@ -332,33 +340,42 @@ class Operator:
             dim = rows * cols
             sendbuf = sendbuf.reshape(dim,1)
             all_phi = np.array([])
+            data = None
 
+            try:
+                if rank != 0:
+                    # every processor should send their data to zero
+                    comm.Send(sendbuf, dest=0)
+            
+            
+                elif rank == 0:
 
-            if rank != 0:
-                # every processor should send their data to zero
-                comm.Send(sendbuf, dest=0)
+                    all_phi = np.zeros((NUM_OF_POINTS, NUM_OF_POINTS))  # this is the final matrix
+                    #print(f"im {rank} with shape {l_phi.shape} and i'm fitting my data in columns index {1} : {i_m[rank][1]}")
+                    all_phi[1:-1, 1 : i_m[rank][1]] = l_phi[1:-1, 1:-1]  # for the first processor we allocate the result
+                    
+                    result_vec = [0 for i in range(size)]  # a vector with the result from the other processors
 
-            elif rank == 0:
-
-                all_phi = np.zeros((NUM_OF_POINTS, NUM_OF_POINTS))  # this is the final matrix
-                #print(f"im {rank} with shape {l_phi.shape} and i'm fitting my data in columns index {rank*N + 1} : {rank*N + N + 1}")
-                all_phi[1:-1, rank*N + 1 : rank*N + N + 1] = l_phi[1:-1, 1:-1]  # for the first processor we allocate the result
-                
-                result_vec = [0 for i in range(size)]  # a vector with the result from the other processors
-
-                for each_p in range(1,size):
-                    N_ = N_of_each_p[each_p-1]  # where to start
-                    N_d = N_of_each_p[each_p]  # how many columns do i need to fit
-                    #print(f"im {each_p} and my N_:{N_} and my N_d: {N_d} and my N:{N}")
-                    dim = rows*N_d
-                    data = np.empty(dim, dtype='d')  # allocate space to receive the array
-                    comm.Recv(data, source=each_p)
-                    #print(f"im {each_p} and i'm fitting my data in columns index {each_p*N_ + 1} : {each_p*N_d + N_ + 1}")
-                    result_vec[each_p] = data.reshape((rows,N_d))
-                    all_phi[1:-1, N + 1 : N + N_d + 1] = result_vec[each_p]
-                    N = N + N_d
-
+                    for each_p in range(1,size):
+                        N_ = N_of_each_p[each_p-1]  # where to start
+                        N_d = N_of_each_p[each_p]  # how many columns do i need to fit
+                        #print(f"im {each_p} and my N_:{N_} and my N_d: {N_d} and my N:{N}")
+                        dim = rows*N_d
+                        data = np.empty(dim, dtype='d')  # allocate space to receive the array
+                        comm.Recv(data, source=each_p)
+                        #print(f"im {each_p} and my num of columns are {N_d}")
+                        #print(f"my data has the shape {data.shape} ---- {(rows,N_d)}")
+                        result_vec[each_p] = data.reshape((rows,N_d))
                         
+                        #print(f"im {each_p} and did reshape and i must fit into -------{i_m[each_p][0]+1} : {i_m[each_p][1]}")
+                        all_phi[1:-1, i_m[each_p][0]+1 : i_m[each_p][1]] = result_vec[each_p]
+                        N = N + N_d
+            except ValueError as e:
+                print(f'there was a value error for {rank} -> {e}')
+            except Exception as e:
+                print(f'there was an error for {rank} -> and  {e} and my sending is {sendbuf.sha} my receiving is \n {data.shape}')
+            
+            
             return all_phi
 
 
@@ -388,7 +405,9 @@ class Operator:
                 map_of_indices[i] = (map_of_indices[i-1][1]-1, map_of_indices[i-1][1] + n_of_pro[i])
         return map_of_indices
 
-
+    def source_generator(self):
+        s = self.numerical_div(self.vel_field_x, self.vel_field_y)  # source function of poisson equation
+        return s
 
 
 

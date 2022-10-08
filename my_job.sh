@@ -4,7 +4,7 @@
 #SBATCH --partition=compute2011
 #SBATCH --exclusive
 date
-for i in {1..48}
+for i in {1..4}
 do
     echo "running for $i"
     mpirun -n $i python3.8 main_p.py

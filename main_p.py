@@ -31,28 +31,28 @@ if __name__ == "__main__":
 
     # velocity field declaration
     def vec_funct_in_x_ans(grid_x, grid_y):
-        #norm = grid_x**2+grid_y**2 
-        #alpha = (norm + 1)**-1
-        alpha = 1/3
+        norm = grid_x**2+grid_y**2 
+        alpha = (norm + 1)**-1
+        #alpha = 1/3
         return grid_y * alpha
 
     def vec_funct_in_y_ans(grid_x, grid_y):
-        #norm = grid_x**2+grid_y**2 
-        #alpha = (norm + 1)**-1
-        alpha = 1/3
+        norm = grid_x**2+grid_y**2 
+        alpha = (norm + 1)**-1
+        #alpha = 1/3
         return -grid_x * alpha
 
     def vec_funct_in_x(grid_x, grid_y):
         norm = grid_x**2+grid_y**2 
-        #alpha = (norm + 1)**-1
-        alpha = 1/3
+        alpha = (norm + 1)**-1
+        #alpha = 1/3
         beta = np.exp(-norm*0.5)
         return grid_y * alpha + grid_x * beta
 
     def vec_funct_in_y(grid_x, grid_y):
         norm = grid_x**2+grid_y**2 
-        #alpha = (norm + 1)**-1
-        alpha = 1/3
+        alpha = (norm + 1)**-1
+        #alpha = 1/3
         beta = np.exp(-norm*0.5)
         return -grid_x * alpha + grid_y * beta
 
@@ -64,12 +64,14 @@ if __name__ == "__main__":
     ################################################# an instance for testing
     op = o.Operator(vec_funct_in_x, vec_funct_in_y)
 
+   
+
     # corrected velocity
-    vel_field_x_ans_grid = vec_funct_in_x_ans(op.X, op.Y)
-    vel_field_y_ans_grid = vec_funct_in_y_ans(op.X, op.Y)
+    # vel_field_x_ans_grid = vec_funct_in_x_ans(op.X, op.Y)
+    # vel_field_y_ans_grid = vec_funct_in_y_ans(op.X, op.Y)
 
     # divergence expected
-    div_exp = divergence_expected(op.X, op.Y)
+    #div_exp = divergence_expected(op.X, op.Y)
 
     start_time_ = mpi4py.MPI.Wtime()  # we start the measure
     phi_ = op.p_jacobi_iterator()
@@ -79,17 +81,18 @@ if __name__ == "__main__":
         with open('time_log.txt', 'a+') as f:
             f.write(f'{size};{finish_time_ - start_time_}\n')
             print(f'for {size} the time is {finish_time_ - start_time_}')
+            write_into_csv(phi_, 'phi_')
     #print(f"for processor:{rank} the result is: \ntime parallel: {finish_time_ - start_time_}")
     #print(f"for processor:{rank} the result is: \ntime parallel: {finish_time_ }")
 
 
-    if rank == 0:
-        laplace_phi = op.laplace(phi_)
-        div_vel = op.numerical_div(op.vel_field_x, op.vel_field_y)  # compute the divergence of the velocity field
+    # if rank == 0:
+    #     laplace_phi = op.laplace(phi_)
+    #     div_vel = op.numerical_div(op.vel_field_x, op.vel_field_y)  # compute the divergence of the velocity field
         
-        ans = div_vel + laplace_phi  # first proof: this must be zero
+    #     ans = div_vel + laplace_phi  # first proof: this must be zero
 
-        # plt.pcolormesh(op.X[1:-1,1:-1], op.Y[1:-1,1:-1], ans[1:-1,1:-1], vmin=-2, vmax=2)
-        # plt.colorbar()
-        # plt.show()
-        print("done")
+    #     # plt.pcolormesh(op.X[1:-1,1:-1], op.Y[1:-1,1:-1], ans[1:-1,1:-1], vmin=-2, vmax=2)
+    #     # plt.colorbar()
+    #     # plt.show()
+    #     print("done")
