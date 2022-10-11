@@ -81,7 +81,7 @@ if __name__ == "__main__":
         with open('time_log.txt', 'a+') as f:
             f.write(f'{size};{finish_time_ - start_time_}\n')
             print(f'for {size} the time is {finish_time_ - start_time_}')
-            write_into_csv(phi_, 'phi_')
+            #write_into_csv(phi_, 'phi_')
     #print(f"for processor:{rank} the result is: \ntime parallel: {finish_time_ - start_time_}")
     #print(f"for processor:{rank} the result is: \ntime parallel: {finish_time_ }")
 

@@ -10,7 +10,7 @@ from mpi4py import MPI
 import time
 
 #####----- constanst declarations
-NUM_OF_POINTS = 8 # number of points for the discretize grid
+NUM_OF_POINTS = 2**6 # number of points for the discretize grid
 D_SIZE = 1  # the size of the domain
 comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
@@ -157,7 +157,7 @@ class Operator:
         phi_temp = np.zeros_like(self.vel_field_x)  # allocate space for the temporary answer
         rho = self.source_generator()
         counter = 0
-        #np.set_printoptions(precision=3)
+        
         while True:
             phi = np.zeros_like(phi_temp)
             for y_dir in range(1, NUM_OF_POINTS - 1, 1):
@@ -195,7 +195,7 @@ class Operator:
             """
                 implementation of the jacobi iteration in parallel
             """
-            
+            np.set_printoptions(precision=3)
             N_of_each_p = self.how_many_columns()  # how many columns each processor will store
             N = N_of_each_p[rank]  # the personal for this processor
             #print(f'this is the distribution of columns: {N_of_each_p}')
@@ -332,49 +332,20 @@ class Operator:
 
 
 
-            ############################ we gather the result
+            ###--- we gather the result ---###
             sendbuf = l_phi[1:-1, 1:-1]
-            #print(f"hi im {rank} and im sending \n{sendbuf}")
-            rows = sendbuf.shape[0]
-            cols = sendbuf.shape[1]
-            dim = rows * cols
-            sendbuf = sendbuf.reshape(dim,1)
-            all_phi = np.array([])
-            data = None
-
-            try:
-                if rank != 0:
-                    # every processor should send their data to zero
-                    comm.Send(sendbuf, dest=0)
+            all_phi_v = comm.gather(sendbuf, root = 0)
             
-            
-                elif rank == 0:
+            all_phi = None
 
-                    all_phi = np.zeros((NUM_OF_POINTS, NUM_OF_POINTS))  # this is the final matrix
-                    #print(f"im {rank} with shape {l_phi.shape} and i'm fitting my data in columns index {1} : {i_m[rank][1]}")
-                    all_phi[1:-1, 1 : i_m[rank][1]] = l_phi[1:-1, 1:-1]  # for the first processor we allocate the result
-                    
-                    result_vec = [0 for i in range(size)]  # a vector with the result from the other processors
-
-                    for each_p in range(1,size):
-                        N_ = N_of_each_p[each_p-1]  # where to start
-                        N_d = N_of_each_p[each_p]  # how many columns do i need to fit
-                        #print(f"im {each_p} and my N_:{N_} and my N_d: {N_d} and my N:{N}")
-                        dim = rows*N_d
-                        data = np.empty(dim, dtype='d')  # allocate space to receive the array
-                        comm.Recv(data, source=each_p)
-                        #print(f"im {each_p} and my num of columns are {N_d}")
-                        #print(f"my data has the shape {data.shape} ---- {(rows,N_d)}")
-                        result_vec[each_p] = data.reshape((rows,N_d))
+            if rank ==0:
+                # we distribute the results in the matrix accordingly
+                i = 0
+                all_phi = np.zeros((NUM_OF_POINTS,NUM_OF_POINTS))
+                for each_rank in range(size):
+                    all_phi[1:-1, i_m[each_rank][0]+1:i_m[each_rank][1]] = all_phi_v[i]
+                    i += 1
                         
-                        #print(f"im {each_p} and did reshape and i must fit into -------{i_m[each_p][0]+1} : {i_m[each_p][1]}")
-                        all_phi[1:-1, i_m[each_p][0]+1 : i_m[each_p][1]] = result_vec[each_p]
-                        N = N + N_d
-            except ValueError as e:
-                print(f'there was a value error for {rank} -> {e}')
-            except Exception as e:
-                print(f'there was an error for {rank} -> and  {e} and my sending is {sendbuf.sha} my receiving is \n {data.shape}')
-            
             
             return all_phi
 
